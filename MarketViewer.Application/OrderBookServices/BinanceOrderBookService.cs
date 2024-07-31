@@ -27,14 +27,14 @@ public class BinanceOrderBookService : IOrderBookService
         
         var binanceOrderBook = await _binanceRestClient.SpotApi.ExchangeData.GetOrderBookAsync(pair);
 
-        var asks = binanceOrderBook.Data.Asks.ToList();
-        var bids = binanceOrderBook.Data.Bids.ToList();
+        var asks = binanceOrderBook.Data.Asks;
+        var bids = binanceOrderBook.Data.Bids;
 
         var orderBook = new OrderBook()
         {
             MarketName = _marketName,
-            SellOrders = asks.Select(o => new Order(OrderType.Sell, o.Quantity, o.Price)).ToList(),
-            BuyOrders = bids.Select(o => new Order(OrderType.Buy, o.Quantity, o.Price)).ToList(),
+            SellOrders = asks.Select(o => new Order(OrderType.Sell, o.Quantity, o.Price)),
+            BuyOrders = bids.Select(o => new Order(OrderType.Buy, o.Quantity, o.Price)),
             DateTimeUtc = DateTime.UtcNow
         };
 

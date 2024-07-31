@@ -11,7 +11,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddScoped<IOrderBookService, BinanceOrderBookService>();
-builder.Services.AddTransient<IOrderBookLogger, InMemoryOrderBookLogger>();
+builder.Services.AddTransient<IOrderBookLogger, FileOrderBookLogger>();
 var app = builder.Build();
 
 // Configure API routes.

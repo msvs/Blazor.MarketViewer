@@ -2,9 +2,9 @@
 
 public class OrderBook
 {
-    public List<Order> SellOrders { get; init; } = [];
+    public IEnumerable<Order> SellOrders { get; init; } = [];
 
-    public List<Order> BuyOrders { get; init; } = [];
+    public IEnumerable<Order> BuyOrders { get; init; } = [];
 
     public Guid Id { get; } = Guid.NewGuid();
 

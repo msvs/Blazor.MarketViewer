@@ -4,15 +4,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace MarketViewer.Infrastructure.Persistence
 {
 	public class FileOrderBookLogger : IOrderBookLogger
 	{
-		public Task Log(OrderBook orderBook)
+		private readonly string _logPath = Path.Combine(AppContext.BaseDirectory, "orderBookLog.txt");
+
+		public async Task Log(OrderBook orderBook)
 		{
-			throw new NotImplementedException();
+			var logMessage = $"{Environment.NewLine}{DateTime.UtcNow} - OrderBook: {JsonSerializer.Serialize(orderBook)}";
+
+			await File.AppendAllTextAsync(_logPath, logMessage);
 		}
 	}
 }
