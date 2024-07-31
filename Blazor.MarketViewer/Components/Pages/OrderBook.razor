@@ -164,9 +164,7 @@ else
 	{
 		decimal estPrice = 0;
 		decimal filledAmount = 0;
-		// Make a copy list with .ToList() call
-		 var asks = _orderBookVM!.RawAsks.ToList();
-		foreach (var ask in asks.OrderBy(a => a.Price))
+		foreach (var ask in _orderBookVM!.RawAsks.OrderBy(a => a.Price))
 		{
 			var needToFill = amountToBuy - filledAmount;
 			var takedAmount = needToFill <= ask.Amount ? needToFill : ask.Amount;
