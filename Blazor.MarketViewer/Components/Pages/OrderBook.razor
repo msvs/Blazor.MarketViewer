@@ -1,0 +1,192 @@
+﻿@page "/orderbook"
+@rendermode InteractiveServer
+@attribute [StreamRendering]
+@using Blazor.MarketViewer.ViewModels
+@using System.Timers
+@using global::MarketViewer.Domain.Abstractions
+@using System.Linq
+@inject ILogger<OrderBook> Logger
+@inject IJSRuntime Js
+@implements IDisposable
+
+<PageTitle>Order book</PageTitle>
+
+<div id="chartContainer" style="height: 400px; width: 100%;">
+</div>
+
+@if (_orderBookVM != null)
+{
+	<div>
+		<p><small>Updated at: @_orderBookVM.DateTimeUtc.ToLongTimeString() UTC</small></p>
+
+		<input type="number" placeholder="BTC amount to buy" @bind="_amountToBuy" />
+		<button class="btn-success" @onclick=UpdateEstimatedPrice>Calc estimated price</button>
+		<div>
+			<p>@(_estimatedBTCPrice >= 0 ? _estimatedBTCPrice.ToString("N") : "Not enough sell orders.")</p>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col-md-6">
+			<div class="float-end">
+				<p>Buy orders</p>
+				@foreach (var col in _orderBookVM.BuyOrders)
+				{
+					foreach (var order in col.Orders)
+					{
+						<p><em>@order.Price - @order.Amount</em></p>
+					}
+				}
+			</div>
+		</div>
+		<div class="col-md-6 float-start">
+			<div class="float-start">
+				<p>Sell orders</p>
+				@foreach (var col in _orderBookVM.SellOrders)
+				{
+					foreach (var order in col.Orders)
+					{
+						<p><em>@order.Price - @order.Amount</em></p>
+					}
+				}
+			</div>
+		</div>
+	</div>
+}
+else if (_loadFailed)
+{
+	<p>Sorry, we could not load Order book due to an error.</p>
+}
+else
+{
+	<p><em>Loading...</em></p>
+}
+
+<script type="text/javascript">
+	var chart = function (chartDataPoints) {
+		console.log(chartDataPoints);
+		var chart = new CanvasJS.Chart("chartContainer",
+			{
+				title: {
+					text: "BTC/EUR market depth"
+				},
+				axisY: {
+					minimum: 0,
+				},
+				data: [
+					{
+						type: "column",
+						dataPoints: chartDataPoints
+					}
+				]
+			});
+
+		chart.render();
+	}
+</script>
+<script type="text/javascript" src="https://cdn.canvasjs.com/canvasjs.min.js">
+</script>
+
+@code {
+
+	private OrderBookVM? _orderBookVM;
+	private decimal _amountToBuy;
+	private decimal _estimatedBTCPrice;
+	private bool _loadFailed;
+	private Timer? _timer;
+
+	[Inject]
+	public IOrderBookService orderBookService { get; set; } = default!;
+
+	protected override Task OnInitializedAsync()
+	{
+		_timer = new();
+		_timer.Interval = 1000;
+		_timer.Elapsed += async (object? sender, ElapsedEventArgs e) =>
+		{
+			await UpdateOrderBook();
+			await UpdateEstimatedPrice();
+			await InvokeAsync(StateHasChanged);
+		};
+
+		return Task.CompletedTask;
+	}
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender)
+		{
+			await UpdateOrderBook();
+			_timer!.Enabled = true;
+			StateHasChanged();
+		}
+	}
+
+	public void Dispose()
+	{
+		_timer?.Stop();
+		_timer?.Dispose();
+	}
+
+	private async Task UpdateOrderBook()
+	{
+		Logger.LogDebug($"{nameof(OrderBook)} UpdateOrderBook called");
+
+		try
+		{
+			_loadFailed = false;
+			var orderBook = await orderBookService.GetCurrentOrderBook();
+			_orderBookVM = OrderBookVM.FromDomain(orderBook);
+
+			// preparing data for JS chart
+			var chartDataPoints = new List<DataPoint>();
+			foreach (var col in _orderBookVM.BuyOrders)
+			{
+				chartDataPoints.Add(new DataPoint(col.Price.ToString(), col.Orders.Sum(o => o.Amount), "green"));
+			}
+			chartDataPoints.Reverse();
+
+			foreach (var col in _orderBookVM.SellOrders)
+			{
+				chartDataPoints.Add(new DataPoint(col.Price.ToString(), col.Orders.Sum(o => o.Amount), "red"));
+			}
+
+			await Js.InvokeVoidAsync("chart", chartDataPoints);
+		}
+		catch (Exception e)
+		{
+			_loadFailed = true;
+			_orderBookVM = null;
+			Logger.LogWarning(e, "Failed to load CurrentOrderBook with {service}", orderBookService.GetType());
+		}
+	}
+
+	private async Task UpdateEstimatedPrice()
+	{
+		Console.WriteLine(_amountToBuy);
+		_estimatedBTCPrice = _amountToBuy > 0 ? CalcEstimatedBtcPrice(_amountToBuy) : 0;
+		await Task.CompletedTask;
+	}
+
+	private decimal CalcEstimatedBtcPrice(decimal amountToBuy)
+	{
+		decimal estPrice = 0;
+		decimal filledAmount = 0;
+		var asks = _orderBookVM!.RawAsks.ToList();
+		foreach (var ask in asks.OrderBy(a => a.Price))
+		{
+			var needToFill = amountToBuy - filledAmount;
+			var taked = needToFill <= ask.Amount ? needToFill : ask.Amount;
+
+			filledAmount += taked;
+			estPrice += ask.Price * (taked);
+
+			if (filledAmount >= amountToBuy)
+				return estPrice;
+		}
+
+		return -1;
+	}
+
+	private record DataPoint(string? label, decimal? y, string? color);
+}
