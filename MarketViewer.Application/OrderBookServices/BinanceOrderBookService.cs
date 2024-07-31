@@ -24,8 +24,8 @@ public class BinanceOrderBookService : IOrderBookService
     {
         // hardcoded for demo
         var pair = "BTCUSDT"; // "BTCUSDT", "BTCEUR";
-
-		var binanceOrderBook = await _binanceRestClient.SpotApi.ExchangeData.GetOrderBookAsync(pair);
+        
+        var binanceOrderBook = await _binanceRestClient.SpotApi.ExchangeData.GetOrderBookAsync(pair);
 
         var asks = binanceOrderBook.Data.Asks.ToList();
         var bids = binanceOrderBook.Data.Bids.ToList();
